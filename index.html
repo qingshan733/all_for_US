@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打表 & 上工 - 一体化工具</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js">
+    </script>
+    <style>
+        :root {
+            --bg: #f5f0eb;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+            --text-secondary: #5a6c7d;
+            --red: #e74c3c;
+            --red-light: #fde8e5;
+            --red-dark: #c0392b;
+            --green: #27ae60;
+            --green-light: #e6f9f0;
+            --green-dark: #1e8449;
+            --border: #e0d8cf;
+            --shadow: 0 2px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.10);
+            --radius: 14px;
+            --radius-sm: 8px;
+            --radius-xs: 6px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-stack: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+            --accent: #3b6fb6;
+            --accent-hover: #2c5a9e;
+            --warning: #f0a030;
+            --purple: #8e44ad;
+            --purple-hover: #7d3c98;
+            --teal: #16a085;
+            --teal-hover: #138d74;
+            --orange: #e67e22;
+            --orange-hover: #d35400;
+            --blue: #2980b9;
+            --blue-hover: #1f6da0;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: var(--font-stack);
+            background: linear-gradient(160deg, #f7f3ed 0%, #efe8df 30%, #f5f0eb 60%, #faf7f2 100%);
+            background-attachment:fixed;
+            min-height:100vh; display:flex; justify-content:center; align-items:flex-start; padding:20px;
+            color:var(--text); -webkit-font-smoothing:antialiased;
+        }
+        .app-container { width:100%; max-width:680px; margin:0 auto; }
+        .page-wrapper { display:none; animation: fadeSlideIn 0.4s ease-out; }
+        .page-wrapper.active { display:block; }
+        @keyframes fadeSlideIn { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes toastIn { from { opacity:0; transform:translateY(-30px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes toastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-30px); } }
+        .entry-container { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh; gap:30px; padding:20px; }
+        .entry-title { font-size:2.2rem; font-weight:800; text-align:center; color: #afa8a0; background-clip:text; margin-bottom:10px; }
+        .entry-subtitle { text-align:center; font-size:1rem; color:var(--text-secondary); margin-bottom:10px; letter-spacing:1px; }
+        .entry-buttons { display:flex; flex-direction:column; gap:20px; width:100%; max-width:420px; }
+        .entry-btn { display:flex; align-items:center; justify-content:center; gap:14px; padding:22px 32px; border:none; border-radius:20px; font-size:1.25rem; font-weight:700; cursor:pointer; transition:all 0.3s ease; letter-spacing:1px; box-shadow:var(--shadow-lg); color:#fff; position:relative; overflow:hidden; }
+        .entry-btn:hover { transform:translateY(-4px); box-shadow:0 14px 36px rgba(0,0,0,0.15); }
+        .entry-btn.orange { background:linear-gradient(135deg, #f0a030, #e67e22, #d35400); font-size:1.35rem; }
+        .entry-btn.blue { background:linear-gradient(135deg, #4da0d0, #2980b9, #1f6da0); font-size:1.35rem; }
+        .entry-btn .icon-large { font-size:2.2rem; flex-shrink:0; }
+        .entry-footer { text-align:center; font-size:0.85rem; color:#a09990; margin-top:10px; letter-spacing:0.5px; }
+        .card { background:var(--card-bg); border-radius:var(--radius); padding:28px 24px; box-shadow:var(--shadow); border:1px solid var(--border); margin-bottom:16px; }
+        .card-header { margin-bottom:20px; padding-bottom:14px; border-bottom:2px solid #f0ebe0; }
+        .card-title { font-size:1.5rem; font-weight:700; display:flex; align-items:center; gap:10px; }
+        .card-subtitle { font-size:0.9rem; color:var(--text-secondary); margin-top:4px; }
+        .hero-banner { text-align:center; padding:18px 0 8px; margin-bottom:8px; }
+        .hero-banner h1 { font-size:2rem; font-weight:800; margin:0; }
+        .hero-banner .tagline { font-size:0.9rem; color:var(--text-secondary); }
+        .input-group { display:flex; align-items:center; gap:8px; padding:10px 14px; margin-bottom:8px; background:#fafaf8; border-radius:var(--radius-sm); border:1px solid #ece7dd; flex-wrap:wrap; }
+        .input-group .item-number { font-weight:700; color:var(--text-secondary); font-size:0.85rem; min-width:28px; text-align:center; flex-shrink:0; }
+        .input-group input[type="text"] { flex:1; min-width:100px; padding:10px 14px; border:1.5px solid #e0d8cf; border-radius:var(--radius-xs); font-size:0.95rem; background:#fff; }
+        .input-group input[type="text"]:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,111,182,0.08); }
+        .remark-toggle, .sub-toggle, .limit-toggle { flex-shrink:0; padding:6px 12px; border-radius:20px; border:2px solid #e74c3c; background:#fff; color:#e74c3c; cursor:pointer; font-weight:600; font-size:0.78rem; white-space:nowrap; display:inline-flex; align-items:center; gap:4px; user-select:none; }
+        .remark-toggle.active, .sub-toggle.active { border-color:#27ae60; background:#e6f9f0; color:#1e8449; }
+        .remark-toggle .dot, .sub-toggle .dot { width:9px; height:9px; border-radius:50%; background:#e74c3c; }
+        .remark-toggle.active .dot, .sub-toggle.active .dot { background:#27ae60; }
+        .limit-toggle { border-color: #bdc3c7; color: #7f8c8d; background: #fdfcf7; }
+        .limit-toggle.has-limit { border-color: #f39c12; color: #e67e22; background: #fff9f0; }
+        .limit-input-small { width:58px; padding:4px 8px; border:2px solid #f39c12; border-radius:20px; font-size:0.85rem; text-align:center; background:#fff; outline:none; }
+        .suboptions-container { margin-left:38px; margin-top:4px; margin-bottom:8px; padding:8px; background:#fdfcf9; border-left:3px solid #d5cdbf; border-radius:0 6px 6px 0; display:none; }
+        .suboptions-container.visible { display:block; }
+        .suboption-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+        .suboption-row input[type="text"] { flex:1; min-width:80px; padding:7px 10px; border:1.5px solid #e0d8cf; border-radius:var(--radius-xs); font-size:0.88rem; background:#fff; }
+        .btn-delete-sub { background:none; border:none; color:#c0392b; cursor:pointer; font-weight:700; font-size:1.2rem; }
+        .btn-add-sub { background:none; border:2px dashed #b8c5d6; color:var(--accent); padding:6px 14px; border-radius:20px; cursor:pointer; font-size:0.8rem; font-weight:600; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 24px; border-radius:25px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; transition:var(--transition); white-space:nowrap; }
+        .btn-primary { background:var(--accent); color:#fff; width:100%; font-size:1rem; padding:14px 28px; border-radius:28px; }
+        .btn-primary:hover { background:var(--accent-hover); }
+        .btn-success { background:#27ae60; color:#fff; width:100%; font-size:1rem; padding:14px 28px; border-radius:28px; }
+        .btn-export-dabiao { background:#fff; color:#27ae60; border:2px solid #27ae60; width:100%; font-size:1rem; padding:14px 28px; border-radius:28px; }
+        .btn-add { background:#fff; color:var(--accent); border:2px dashed #c5cde0; width:100%; padding:12px; border-radius:var(--radius-sm); }
+        .btn-add:disabled { opacity:0.4; cursor:not-allowed; }
+        .btn-reset { background:#fff; color:var(--red); border:2px solid var(--red); padding:12px 24px; border-radius:25px; flex:1; }
+        .btn-back { background:none; border:2px solid var(--accent); color:var(--accent); padding:8px 18px; font-size:0.9rem; display:inline-flex; align-items:center; gap:6px; }
+        .btn-query { background:none; border:2px solid var(--warning); color:var(--warning); padding:8px 18px; font-size:0.9rem; display:inline-flex; align-items:center; gap:6px; }
+        .btn-home { background:none; border:2px solid #a09990; color:#a09990; padding:6px 14px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; border-radius:20px; cursor:pointer; transition:var(--transition); font-weight:500; }
+        .btn-home:hover { border-color:#7d7268; color:#7d7268; }
+        .btn-date-option { display:inline-block; margin:4px 6px; padding:8px 16px; border-radius:18px; border:2px solid var(--accent); background:#fff; color:var(--accent); cursor:pointer; font-weight:600; font-size:0.88rem; }
+        .btn-date-option:hover { background:#eef3fb; transform:translateY(-1px); }
+        .btn-date-back { display:inline-block; margin-bottom:8px; padding:5px 12px; border-radius:14px; border:1.5px solid #a09990; background:#fff; color:#a09990; cursor:pointer; font-size:0.8rem; }
+        .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px; }
+        .info-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px; align-items:center; }
+        .info-field { flex:1; min-width:140px; }
+        .info-field label { font-weight:600; font-size:0.85rem; color:var(--text-secondary); display:block; margin-bottom:5px; }
+        .info-field input { width:100%; padding:11px 14px; border:1.5px solid #e0d8cf; border-radius:var(--radius-xs); font-size:0.95rem; background:#fff; }
+        .global-remark-row { margin-top:12px; }
+        .global-remark-row label { font-weight:600; font-size:0.85rem; color:var(--text-secondary); display:block; margin-bottom:5px; }
+        .global-remark-row input { width:100%; padding:11px 14px; border:1.5px solid #e0d8cf; border-radius:var(--radius-xs); font-size:0.95rem; background:#fff; }
+        .checklist { list-style:none; padding:0; margin:0; }
+        .checklist-item { display:flex; align-items:flex-start; gap:12px; padding:12px 14px; margin-bottom:6px; border-radius:var(--radius-sm); border:1px solid #ece7dd; background:#fafaf8; cursor:pointer; flex-wrap:wrap; }
+        .checklist-item.checked { border-color:#b7e4cc; background:#f6fdf9; }
+        .check-circle { flex-shrink:0; width:36px; height:36px; border-radius:50%; border:3px solid #e74c3c; background:#fff; cursor:pointer; }
+        .check-circle.checked { border-color:#27ae60; background:#27ae60; }
+        .check-circle.checked::after { content:''; display:block; width:10px; height:16px; border:solid #fff; border-width:0 3px 3px 0; transform:rotate(45deg) translateY(-1px); }
+        .checklist-label { flex:1; font-weight:600; font-size:0.95rem; padding-top:6px; }
+        .sub-options-list { width:100%; padding-left:50px; margin-top:6px; display:flex; flex-direction:column; gap:6px; }
+        .sub-option-row-check { display:flex; align-items:center; gap:8px; }
+        .sub-check-circle { width:24px; height:24px; border-radius:50%; border:2.5px solid #e74c3c; background:#fff; cursor:pointer; flex-shrink:0; position:relative; }
+        .sub-check-circle.checked { border-color:#27ae60; background:#27ae60; }
+        .sub-check-circle.checked::after { content:''; position:absolute; top:2px; left:7px; width:6px; height:12px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
+        .sub-option-label { font-size:0.9rem; color:var(--text); font-weight:500; }
+        .remark-input-wrapper { width:100%; padding-left:48px; margin-top:4px; display:none; }
+        .remark-input-wrapper.visible { display:block; }
+        .remark-input-wrapper input { width:100%; padding:9px 12px; border:1.5px solid #e0d8cf; border-radius:var(--radius-xs); font-size:0.88rem; }
+        .saved-summary { font-size:0.85rem; color:var(--text-secondary); text-align:center; margin-top:8px; padding:8px; background:#fdfcf9; border-radius:20px; display:none; }
+        .toast-container { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+        .toast { background:#2c3e50; color:#fff; padding:12px 22px; border-radius:25px; font-weight:600; font-size:0.9rem; animation:toastIn 0.35s; }
+        .toast.success { background:#27ae60; } .toast.warning { background:#f0a030; } .toast.removing { animation:toastOut 0.3s forwards; }
+        .btn-group { display:flex; flex-direction:column; gap:10px; margin-top:18px; padding-top:14px; border-top:1px solid #f0ebe0; }
+        .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:10000; display:flex; align-items:center; justify-content:center; }
+        .modal-content { background:#fff; border-radius:var(--radius); padding:20px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:var(--shadow-lg); position:relative; }
+        .stats-table { width:100%; border-collapse:collapse; font-size:0.9rem; } .stats-table th, .stats-table td { border:1px solid #e0d8cf; padding:8px; text-align:center; }
+        .stats-table th { background:#f5f0eb; }
+        .page-footer { text-align:center; font-size:0.85rem; color:#a09990; margin-top:24px; padding:12px 0; }
+        .flex-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+        .flex-row input[type="text"] { flex:1; min-width:180px; padding:10px 14px; border:1.5px solid var(--border); border-radius:var(--radius-xs); font-size:0.95rem; }
+        .status-btn { padding:12px 28px; border:none; border-radius:30px; font-size:1rem; font-weight:700; cursor:pointer; transition:all 0.3s ease; background-color:var(--red); color:white; box-shadow:var(--shadow); }
+        .status-btn.green { background-color:var(--green); }
+        .result-area { min-height:80px; white-space:pre-line; line-height:1.8; font-size:0.95rem; border-radius:var(--radius-sm); padding:18px; background:#fafaf8; border:1px solid #ece7dd; }
+        .list-result { background:#fafaf8; border:1px solid #ece7dd; border-radius:var(--radius-sm); padding:18px; margin-top:10px; min-height:40px; white-space:pre-line; font-size:0.95rem; }
+        .note { font-size:0.85rem; color:var(--text-secondary); margin-top:8px; line-height:1.5; }
+        .current-id { font-weight:700; color:var(--accent); margin-left:10px; }
+        .tagline { text-align:center; font-size:0.9rem; color:var(--text-secondary); margin-bottom:16px; }
+        .btn-delete-record { background:none; border:none; color:var(--orange); font-weight:700; font-size:0.9rem; cursor:pointer; margin-left:12px; }
+        .btn-close-orange { position:absolute; top:12px; right:16px; background:none; border:none; font-size:1.5rem; color:var(--orange); cursor:pointer; }
+        .id-list-item { padding:10px 12px; border:1px solid #e0d8cf; border-radius:var(--radius-xs); margin-bottom:6px; cursor:pointer; }
+        .id-list-item:hover { background:#f5f0eb; }
+        .shift-btn { padding:6px 12px; border:2px solid var(--border); background:#fff; border-radius:20px; cursor:pointer; font-weight:600; font-size:0.85rem; color:var(--text); margin-left:4px; }
+        .shift-btn.active { border-color:var(--orange); background:#fff3e0; color:var(--orange); }
+        .limit-confirm-modal { text-align:left; }
+        .limit-confirm-modal p { margin-bottom:15px; }
+        .btn-confirm-group { display:flex; gap:12px; justify-content:flex-end; margin-top:15px; }
+        .no-remind-label { display:flex; align-items:center; gap:6px; font-size:0.78rem; color:#ffc000; margin-top:5px; }
+    </style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="app-container">
+    <div class="page-wrapper active" id="pageEntry">
+        <div class="entry-container">
+            <div><h1 class="entry-title"> 打表 & 上工</h1><p class="entry-subtitle">打表数据自动同步上工查询 · 数据互通</p></div>
+            <div class="entry-buttons">
+                <button class="entry-btn orange" id="btnGoDabiao"><span class="icon-large">🐶</span> 今天打表了吗</button>
+                <button class="entry-btn blue" id="btnGoQuery"><span class="icon-large">🐰</span> 今天上工了吗</button>
+            </div>
+            <p class="entry-footer">开始使用前务必简单试用各项功能尤其是表格导出</p>
+            <p class="entry-footer">多多保存 | 多多导出 | 多多备份 | 多多祝您一切顺利</p>
+            <p class="entry-footer">ALL BY 青衫73 FOR YOUNG ROCKERS</p>
+        </div>
+    </div>
+
+    <div class="page-wrapper" id="pageDabiaoWrapper">
+        <div class="page" id="page1">
+            <div class="top-bar"><button class="btn btn-home" id="btnHomeFromDabiao1">🏠 返回首页</button></div>
+            <div class="hero-banner"><h1 style="color:#e67e22;">☀ 今天打表了吗？</h1><p class="tagline">设置制品名称，可添加备注、副选项与上限</p></div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">🐟 输入制品名称</span><span class="card-subtitle">副选项为主项的分类，如（主）八仙子成员 - 吕严/土豆（副），勾选副选项主选项才会计数哦！</span></div>
+                <div id="itemList"></div>
+                <button class="btn btn-add" id="btnAddItem">＋ 添加制品项（最多50项）</button>
+                <div style="text-align:center;margin-top:4px;font-size:0.78rem;color:#a09990;">已添加 <strong id="itemCount">1</strong> / 50 项</div>
+            </div>
+            <button class="btn btn-primary" id="btnStartTable">🤘 开始拉表</button>
+            <div class="page-footer">ALL BY 青衫73 FOR YOUNG ROCKERS</div>
+        </div>
+        <div class="page" id="page2" style="display:none;">
+            <div class="top-bar">
+                <button class="btn btn-back" id="btnBackToPage1">🐶 返回编辑制品</button>
+                <button class="btn btn-home" id="btnHomeFromDabiao2">🏠 返回首页</button>
+                <button class="btn btn-query" id="btnQueryRecord">🐰 查询已填内容</button>
+            </div>
+            <div class="hero-banner"><h1 style="color:#e67e22;"> ☀ 打表进行时</h1><p class="tagline">记录每条打表数据，勾选制品及副选项</p></div>
+            <div class="card">
+                <div class="info-row">
+                    <div class="info-field"><label for="inputDate">⚓ 日期</label><input type="date" id="inputDate"></div>
+                    <div class="info-field"><label>🌗 场次</label><div style="display:flex; gap:4px; margin-top:5px;"><button class="shift-btn active" data-shift="早">早</button><button class="shift-btn" data-shift="午">午</button><button class="shift-btn" data-shift="晚">晚</button></div></div>
+                    <div class="info-field"><label for="inputId">📀 ID名称</label><input type="text" id="inputId" placeholder="请输入ID名称"></div>
+                </div>
+                <div class="global-remark-row"><label for="inputGlobalRemark">🍉 整体备注</label><input type="text" id="inputGlobalRemark" placeholder="可选填" maxlength="200"></div>
+                <div style="margin-top:12px;display:flex;justify-content:space-between;gap:10px;">
+                    <button class="btn btn-reset" id="btnResetAll">🧡 全部重置</button>
+                    <button class="btn" id="btnShowStats" style="background:#fff;border:2px solid var(--accent);color:var(--accent);padding:12px 24px;flex:1;">💙 总量统计</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">✔ 制品勾选清单</span><span class="card-subtitle">红色未勾选，绿色已勾选</span></div>
+                <div id="checklistContainer"></div>
+                <div class="saved-summary" id="savedSummary">已保存 <strong id="savedCount">0</strong> 条记录</div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" id="btnSaveAndNext">🎸 保存并填写下一个</button>
+                <button class="btn btn-export-dabiao" id="btnExport">🎵 输出表格（Excel）</button>
+            </div>
+            <div class="page-footer">ALL BY 青衫73 FOR YOUNG ROCKERS</div>
+        </div>
+    </div>
+
+    <div class="page-wrapper" id="pageQueryWrapper">
+        <div class="top-bar" style="margin-bottom:12px;">
+            <button class="btn btn-home" id="btnHomeFromQuery">🏠 返回首页</button>
+            <span id="syncBadge" class="sync-badge" style="display:none;">🐾 数据来自打表同步</span>
+        </div>
+        <h1 style="text-align:center; color:#2980b9;">☀ 今天上工了吗？</h1>
+        <p class="tagline" style="text-align:center;">上传表格，查询订单状态，轻巧记录打包与互换</p>
+        <div class="card">
+            <div class="flex-row">
+                <label style="font-weight:600;">🎶 表格文件</label>
+                <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;">
+                <button id="uploadBtn" class="btn-primary" style="width:auto;padding:10px 20px;">📀 上传新表格</button>
+                <button id="syncDabiaoBtn" class="btn-primary" style="width:auto;padding:10px 20px; background:#f0a030; border:none;">🔄 同步打表数据</button>
+                <span id="tableStatus" style="margin-left:15px;font-size:0.9rem;color:var(--text-secondary);"></span>
+            </div>
+            <div class="note">❗请保证表格第一行为表头，第一列表头必为“日期”，第二列表头必为“id”，其余列为制品。</div>
+            <div class="note">❗首次上传后浏览器会自动记忆。点击「上传新表格」会清空旧数据。</div>
+            <div class="note" style="color:#27ae60;font-weight:600;">🔗 打表数据已自动同步至此，可直接查询。</div>
+        </div>
+        <div class="card">
+            <div class="flex-row">
+                <input type="text" id="idInput" placeholder="请输入 ID 或关键字">
+                <button id="searchBtn" class="btn-primary" style="width:auto;padding:10px 20px;">🔍 查询</button>
+                <span class="current-id" id="currentIdLabel"></span>
+            </div>
+            <div class="note">支持模糊搜索，可输入部分ID查找。</div>
+        </div>
+        <div class="card result-area" id="resultBox"><span style="color:#a09990;">请先上传表格或同步打表数据，然后输入 ID 查询</span></div>
+        <div class="card">
+            <div class="flex-row" style="justify-content:center;gap:20px;flex-wrap:wrap;">
+                <button class="status-btn" id="btnPacked">🐶 已打包</button>
+                <button class="status-btn" id="btnSwapped">🐰 已互换</button>
+            </div>
+            <div class="flex-row" style="justify-content:center;margin-top:15px;">
+                <button id="exportBtn" class="btn" style="background:var(--purple);color:#fff;border:none;padding:10px 20px;border-radius:25px;">🤘 导出状态为 Excel</button>
+            </div>
+            <div class="flex-row" style="justify-content:center;margin-top:12px;gap:15px;flex-wrap:wrap;">
+                <button id="btnUnpackedList" class="btn btn-list" style="padding:10px 20px;">💙 未打包名单</button>
+                <button id="btnUnswappedList" class="btn btn-list" style="padding:10px 20px;">🧡 未互换名单</button>
+            </div>
+            <div id="listResultBox" class="list-result"><span style="color:#a09990;">点击上方按钮查看名单</span></div>
+            <div class="note" style="text-align:center;">导出 Excel 包含所有订单当前状态。</div>
+        </div>
+        <div class="page-footer">ALL BY 青衫73 FOR YOUNG ROCKERS</div>
+    </div>
+</div>
+
+<div id="statsModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content"><div class="modal-header"><h3>🎶 各选项勾选总次数</h3><button class="btn-close-orange" id="btnCloseStats">✕</button></div><div id="statsTableContainer"></div></div>
+</div>
+<div id="queryModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <button class="btn-close-orange" id="btnCloseQuery">✕</button>
+        <div class="modal-header" style="margin-top:0; padding-right:30px;"><h3>🐾 查询记录（支持模糊搜索）</h3></div>
+       <div class="modal-header" style="margin-top:0; padding-right:30px;"><h3> —————————————</h3></div>
+        <div><input type="text" id="queryInputId" placeholder="输入关键字搜索ID..." style="width:100%;padding:10px;border:1.5px solid #e0d8cf;border-radius:6px;margin-bottom:10px;"><button id="btnSearchId" class="btn btn-primary" style="width:100%;">搜索</button><div id="queryResults" style="margin-top:12px;"></div></div>
+    </div>
+</div>
+<div id="limitConfirmModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content limit-confirm-modal">
+        <p id="limitMsg"></p>
+        <div class="no-remind-label"><input type="checkbox" id="noRemindCheckbox"><label for="noRemindCheckbox">不再弹出</label></div>
+        <div class="btn-confirm-group">
+            <button class="btn" id="limitConfirmYes" style="background:#27ae60;color:#fff;padding:8px 20px;">是，继续添加</button>
+            <button class="btn" id="limitConfirmNo" style="background:#e74c3c;color:#fff;padding:8px 20px;">否</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const pageEntry=document.getElementById('pageEntry');
+    const pageDabiaoWrapper=document.getElementById('pageDabiaoWrapper');
+    const pageQueryWrapper=document.getElementById('pageQueryWrapper');
+    const page1=document.getElementById('page1');
+    const page2=document.getElementById('page2');
+    const syncBadge=document.getElementById('syncBadge');
+
+    function showEntryPage() { pageEntry.classList.add('active'); pageDabiaoWrapper.classList.remove('active'); pageQueryWrapper.classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); }
+    function showDabiaoPage() { pageEntry.classList.remove('active'); pageDabiaoWrapper.classList.add('active'); pageQueryWrapper.classList.remove('active'); if(typeof initPage1Dabiao==='function') initPage1Dabiao(); window.scrollTo({top:0,behavior:'smooth'}); }
+    function showQueryPage() { pageEntry.classList.remove('active'); pageDabiaoWrapper.classList.remove('active'); pageQueryWrapper.classList.add('active'); window.scrollTo({top:0,behavior:'smooth'}); if(typeof refreshQueryData==='function') refreshQueryData(); updateSyncBadge(); }
+    function updateSyncBadge() { const has = localStorage.getItem('orderDataFromSync')==='true'; if(syncBadge) syncBadge.style.display = has ? 'inline-block' : 'none'; }
+
+    document.getElementById('btnGoDabiao').addEventListener('click', showDabiaoPage);
+    document.getElementById('btnGoQuery').addEventListener('click', showQueryPage);
+    document.getElementById('btnHomeFromDabiao1').addEventListener('click', showEntryPage);
+    document.getElementById('btnHomeFromDabiao2').addEventListener('click', showEntryPage);
+    document.getElementById('btnHomeFromQuery').addEventListener('click', showEntryPage);
+
+    function syncDabiaoToQuery() {
+        try {
+            const raw = localStorage.getItem('tableAppData'); if(!raw) return false;
+            const data = JSON.parse(raw); const savedRecords = data.savedRecords||[]; const productItems = data.productItems||[];
+            if(savedRecords.length===0 || productItems.length===0) return false;
+            const headers = ['日期','id'];
+            productItems.forEach(item=>{ headers.push(item.name); if(item.needSubOptions&&item.subOptions?.length) headers.push(item.name+'数量'); if(item.needRemark) headers.push(item.name+'备注'); });
+            headers.push('整体备注');
+            const tableData = savedRecords.map(rec=>{
+                const obj={}; obj['日期']=rec.date||''; obj['id']=rec.id||'';
+                productItems.forEach(item=>{
+                    const checked = rec.checks&&rec.checks[item.name]===true;
+                    if(item.needSubOptions&&item.subOptions?.length){
+                        const sub = (rec.subOptionChecks&&rec.subOptionChecks[item.name])||{};
+                        const sel = item.subOptions.filter(s=>sub[s]===true);
+                        obj[item.name]=sel.join('/');
+                        obj[item.name+'数量']=sel.length > 0 ? sel.length : '';
+                    } else obj[item.name]=checked?'1':'';
+                    if(item.needRemark) obj[item.name+'备注']=(rec.remarks&&rec.remarks[item.name])||'';
+                });
+                obj['整体备注']=rec.globalRemark||''; return obj;
+            });
+            localStorage.setItem('orderHeaders', JSON.stringify(headers));
+            localStorage.setItem('orderData', JSON.stringify(tableData));
+            localStorage.setItem('orderDataFromSync','true');
+            if(!localStorage.getItem('orderStatusMap')) localStorage.setItem('orderStatusMap','{}');
+            return true;
+        } catch(e){ return false; }
+    }
+    window.syncDabiaoToQueryGlobal = syncDabiaoToQuery;
+
+    (function(){
+        const STORAGE_KEY='tableAppData'; let productItems=[],savedRecords=[],editingRecordIndex=null; const MAX_ITEMS=50;
+        const itemList=document.getElementById('itemList'),btnAddItem=document.getElementById('btnAddItem'),btnStartTable=document.getElementById('btnStartTable'),itemCountEl=document.getElementById('itemCount');
+        const inputDate=document.getElementById('inputDate'),inputId=document.getElementById('inputId'),inputGlobalRemark=document.getElementById('inputGlobalRemark');
+        const btnSaveAndNext=document.getElementById('btnSaveAndNext'),btnExportDabiao=document.getElementById('btnExport'),savedSummary=document.getElementById('savedSummary'),savedCountEl=document.getElementById('savedCount');
+        const toastContainer=document.getElementById('toastContainer'),btnShowStats=document.getElementById('btnShowStats'),statsModal=document.getElementById('statsModal'),btnCloseStats=document.getElementById('btnCloseStats'),statsTableContainer=document.getElementById('statsTableContainer');
+        const btnResetAll=document.getElementById('btnResetAll'),btnBackToPage1=document.getElementById('btnBackToPage1'),checklistContainer=document.getElementById('checklistContainer');
+        const btnQueryRecord=document.getElementById('btnQueryRecord'),queryModal=document.getElementById('queryModal'),btnCloseQuery=document.getElementById('btnCloseQuery'),queryInputId=document.getElementById('queryInputId'),btnSearchId=document.getElementById('btnSearchId'),queryResults=document.getElementById('queryResults');
+        const limitConfirmModal=document.getElementById('limitConfirmModal'),limitMsg=document.getElementById('limitMsg'),noRemindCheckbox=document.getElementById('noRemindCheckbox'),limitConfirmYes=document.getElementById('limitConfirmYes'),limitConfirmNo=document.getElementById('limitConfirmNo');
+        let toastTimer; let currentShift = '早'; let pendingLimitCallback=null;
+        function showToast(m,t){ if(toastTimer)clearTimeout(toastTimer); toastContainer.querySelectorAll('.toast').forEach(e=>{e.classList.add('removing');setTimeout(()=>e.remove(),300)}); const d=document.createElement('div');d.className='toast '+t;d.textContent=m;toastContainer.appendChild(d);toastTimer=setTimeout(()=>{d.classList.add('removing');setTimeout(()=>{if(d.parentNode)d.remove()},300)},2200); }
+        function saveToLocalStorage(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify({productItems,savedRecords})); if(window.syncDabiaoToQueryGlobal) window.syncDabiaoToQueryGlobal(); }catch(e){showToast('存储空间不足','warning');} }
+        function loadFromLocalStorage(){ try{ const r=localStorage.getItem(STORAGE_KEY); if(r){ const d=JSON.parse(r); if(Array.isArray(d.productItems)){ productItems=d.productItems; productItems.forEach(p=>{ p.limit=p.limit??null; p.noRemind=p.noRemind??false; p.subOptionLimits=p.subOptionLimits??[]; p.subNoRemind=p.subNoRemind??{}; }); } if(Array.isArray(d.savedRecords)) savedRecords=d.savedRecords; } }catch(e){} }
+        function clearLocalStorage(){ localStorage.removeItem(STORAGE_KEY); productItems=[]; savedRecords=[]; }
+        function initPage1Dabiao(){ 
+            if(productItems.length===0) productItems.push({name:'',needRemark:false,needSubOptions:false,subOptions:[],limit:null,subOptionLimits:[],noRemind:false,subNoRemind:{}});
+            page1.style.display = ''; page2.style.display = 'none';
+            page1.classList.add('active'); page2.classList.remove('active');
+            renderItemList(); updateItemCount(); window.scrollTo({top:0,behavior:'smooth'});
+        }
+        window.initPage1Dabiao = initPage1Dabiao;
+        function renderItemList(){
+            itemList.innerHTML='';
+            productItems.forEach((item,idx)=>{
+                const w=document.createElement('div');w.style.marginBottom='6px';
+                const r=document.createElement('div');r.className='input-group';
+                r.innerHTML=`<span class="item-number">#${idx+1}</span>
+                <input type="text" class="item-name-input" data-index="${idx}" value="${escapeHtml(item.name)}" placeholder="制品名称" maxlength="100">
+                <button class="remark-toggle ${item.needRemark?'active':''}" data-index="${idx}" data-type="remark"><span class="dot"></span>${item.needRemark?'需要备注':'备注'}</button>
+                <button class="sub-toggle ${item.needSubOptions?'active':''}" data-index="${idx}" data-type="sub"><span class="dot"></span>${item.needSubOptions?'已开副选项':'副选项'}</button>
+                <span class="limit-wrapper"><button class="limit-toggle ${item.limit!=null?'has-limit':''}" data-index="${idx}">${item.limit!=null?'上限:'+item.limit:'上限'}</button><input type="number" class="limit-input-small" style="display:none;width:62px;" min="0" data-index="${idx}" value="${item.limit??''}"></span>`;
+                w.appendChild(r);
+                const sc=document.createElement('div');sc.className='suboptions-container'+(item.needSubOptions?' visible':'');sc.dataset.index=idx;
+                buildSubOptionsUI(sc,idx,item); w.appendChild(sc); itemList.appendChild(w);
+            });
+            itemList.querySelectorAll('.item-name-input').forEach(i=>i.addEventListener('input',function(){ const idx=parseInt(this.dataset.index); productItems[idx].name=this.value.trim(); saveToLocalStorage(); }));
+            itemList.querySelectorAll('.remark-toggle,.sub-toggle').forEach(b=>b.addEventListener('click',function(e){ e.preventDefault(); const idx=parseInt(this.dataset.index); if(this.dataset.type==='remark') productItems[idx].needRemark=!productItems[idx].needRemark; else { productItems[idx].needSubOptions=!productItems[idx].needSubOptions; if(!productItems[idx].needSubOptions) productItems[idx].subOptions=[]; } saveToLocalStorage(); renderItemList(); }));
+            itemList.querySelectorAll('.limit-toggle').forEach(btn=>btn.addEventListener('click',function(e){e.preventDefault();const idx=parseInt(this.dataset.index);const input=this.nextElementSibling;this.style.display='none';input.style.display='inline-block';input.focus();}));
+            itemList.querySelectorAll('.limit-input-small').forEach(input=>{input.addEventListener('blur',function(){const idx=parseInt(this.dataset.index);const val=this.value.trim();productItems[idx].limit=val===''?null:parseInt(val,10);if(productItems[idx].limit!=null&&isNaN(productItems[idx].limit))productItems[idx].limit=null;saveToLocalStorage();renderItemList();});input.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();this.blur();}});});
+            updateItemCount(); btnAddItem.disabled=productItems.length>=MAX_ITEMS;
+        }
+        function buildSubOptionsUI(container,pidx,item){
+            container.innerHTML=''; const ld=document.createElement('div');ld.className='sub-options-inner';
+            item.subOptions.forEach((sn,si)=>{
+                const sr=document.createElement('div');sr.className='suboption-row';
+                sr.innerHTML=`<input type="text" class="suboption-input" data-parent="${pidx}" data-subindex="${si}" value="${escapeHtml(sn)}" placeholder="副选项名称" maxlength="60">
+                <button class="btn-delete-sub" data-parent="${pidx}" data-subindex="${si}">✕</button>
+                <span class="limit-wrapper"><button class="limit-toggle sub-limit-btn ${item.subOptionLimits[si]!=null?'has-limit':''}" data-parent="${pidx}" data-subindex="${si}">${item.subOptionLimits[si]!=null?'上限:'+item.subOptionLimits[si]:'上限'}</button><input type="number" class="limit-input-small" style="display:none;width:58px;" min="0" data-parent="${pidx}" data-subindex="${si}" value="${item.subOptionLimits[si]??''}"></span>`;
+                ld.appendChild(sr);
+            });
+            const ab=document.createElement('button');ab.className='btn-add-sub';ab.textContent='＋ 添加副选项';ab.dataset.parent=pidx; ld.appendChild(ab); container.appendChild(ld);
+            container.querySelectorAll('.suboption-input').forEach(i=>i.addEventListener('input',function(){ const p=parseInt(this.dataset.parent),s=parseInt(this.dataset.subindex); if(productItems[p]?.subOptions) productItems[p].subOptions[s]=this.value.trim(); saveToLocalStorage(); }));
+            container.querySelectorAll('.btn-delete-sub').forEach(b=>b.addEventListener('click',function(e){ e.preventDefault(); const p=parseInt(this.dataset.parent),s=parseInt(this.dataset.subindex); if(productItems[p]?.subOptions){ productItems[p].subOptions.splice(s,1); if(!productItems[p].subOptionLimits) productItems[p].subOptionLimits=[]; productItems[p].subOptionLimits.splice(s,1); saveToLocalStorage(); renderItemList(); } }));
+            container.querySelectorAll('.btn-add-sub').forEach(b=>b.addEventListener('click',function(e){ e.preventDefault(); const p=parseInt(this.dataset.parent); if(productItems[p]){ if(!productItems[p].subOptions) productItems[p].subOptions=[]; if(!productItems[p].subOptionLimits) productItems[p].subOptionLimits=[]; productItems[p].subOptions.push(''); productItems[p].subOptionLimits.push(null); saveToLocalStorage(); renderItemList(); } }));
+            container.querySelectorAll('.sub-limit-btn').forEach(btn=>btn.addEventListener('click',function(e){e.preventDefault();const input=this.nextElementSibling;this.style.display='none';input.style.display='inline-block';input.focus();}));
+            container.querySelectorAll('.limit-input-small').forEach(input=>{input.addEventListener('blur',function(){const p=parseInt(this.dataset.parent),s=parseInt(this.dataset.subindex);const val=this.value.trim();if(!productItems[p].subOptionLimits)productItems[p].subOptionLimits=[];productItems[p].subOptionLimits[s]=val===''?null:parseInt(val,10);if(productItems[p].subOptionLimits[s]!=null&&isNaN(productItems[p].subOptionLimits[s]))productItems[p].subOptionLimits[s]=null;saveToLocalStorage();renderItemList();});input.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();this.blur();}});});
+        }
+        function updateItemCount(){ itemCountEl.textContent=productItems.length; }
+        btnAddItem.addEventListener('click',()=>{ if(productItems.length>=MAX_ITEMS){ showToast('已达上限','warning'); return; } productItems.push({name:'',needRemark:false,needSubOptions:false,subOptions:[],limit:null,subOptionLimits:[],noRemind:false,subNoRemind:{}}); saveToLocalStorage(); renderItemList(); showToast(`已添加第${productItems.length}项`,'success'); });
+        btnStartTable.addEventListener('click',()=>{ const v=productItems.filter(i=>i.name.trim()!==''); if(v.length===0){ showToast('请至少输入一个制品名称','warning'); return; } productItems=v; saveToLocalStorage(); renderItemList(); switchToPage2(); });
+        function switchToPage2(){ 
+            page1.style.display = 'none'; page2.style.display = '';
+            page1.classList.remove('active'); page2.classList.add('active');
+            initPage2(); window.scrollTo({top:0,behavior:'smooth'});
+        }
+        btnBackToPage1.addEventListener('click',()=>{ editingRecordIndex=null; initPage1Dabiao(); });
+        function setShiftButtons(shift){ currentShift=shift; document.querySelectorAll('#page2 .shift-btn').forEach(b=>b.classList.toggle('active',b.dataset.shift===shift)); }
+        function initPage2(){ editingRecordIndex=null; if(!inputDate.value){ const d=new Date(); inputDate.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } inputId.value=''; inputGlobalRemark.value=''; setShiftButtons(currentShift); renderChecklist(); updateSavedSummary(); inputId.focus(); }
+        document.querySelectorAll('#page2 .shift-btn').forEach(b=>b.addEventListener('click', function(){ setShiftButtons(this.dataset.shift); }));
+        function renderChecklist(){
+            checklistContainer.innerHTML=''; if(productItems.length===0){ checklistContainer.innerHTML='<p style="text-align:center;color:#a09990;">暂无制品</p>'; return; }
+            const ul=document.createElement('ul');ul.className='checklist';
+            productItems.forEach((item,idx)=>{
+                const li=document.createElement('li');li.className='checklist-item';li.dataset.productIndex=idx;
+                let h=`<div class="check-circle" data-product-index="${idx}"></div><span class="checklist-label">${escapeHtml(item.name)}</span>`;
+                if(item.needSubOptions&&item.subOptions.length){ h+=`<div class="sub-options-list" data-product-index="${idx}">`; item.subOptions.forEach((s,si)=>{ h+=`<div class="sub-option-row-check"><div class="sub-check-circle" data-product-index="${idx}" data-sub-index="${si}"></div><span class="sub-option-label">${escapeHtml(s)}</span></div>`; }); h+='</div>'; }
+                if(item.needRemark) h+=`<div class="remark-input-wrapper visible" data-product-index="${idx}"><input type="text" class="remark-input" data-product-index="${idx}" placeholder="备注" maxlength="200"></div>`;
+                li.innerHTML=h; ul.appendChild(li);
+            });
+            checklistContainer.appendChild(ul);
+            checklistContainer.querySelectorAll('.check-circle').forEach(c=>c.addEventListener('click',function(e){e.stopPropagation(); handleMainToggle(parseInt(this.dataset.productIndex),this);}));
+            checklistContainer.querySelectorAll('.sub-check-circle').forEach(s=>s.addEventListener('click',function(e){e.stopPropagation(); handleSubToggle(parseInt(this.dataset.productIndex),parseInt(this.dataset.subIndex),this);}));
+        }
+        function countMainInRecords(itemName){ return savedRecords.reduce((acc,rec)=>{ if(rec.checks&&rec.checks[itemName]===true) acc++; return acc; },0); }
+        function countSubInRecords(itemName,subName){ return savedRecords.reduce((acc,rec)=>{ if(rec.subOptionChecks&&rec.subOptionChecks[itemName]&&rec.subOptionChecks[itemName][subName]===true) acc++; return acc; },0); }
+        function showLimitConfirm(message,callback){ limitMsg.textContent=message; noRemindCheckbox.checked=false; limitConfirmModal.style.display='flex'; pendingLimitCallback=callback; }
+        function hideLimitConfirm(){ limitConfirmModal.style.display='none'; pendingLimitCallback=null; }
+        limitConfirmYes.addEventListener('click',()=>{ if(pendingLimitCallback){ pendingLimitCallback(true,noRemindCheckbox.checked); } hideLimitConfirm(); });
+        limitConfirmNo.addEventListener('click',()=>{ if(pendingLimitCallback){ pendingLimitCallback(false,noRemindCheckbox.checked); } hideLimitConfirm(); });
+        limitConfirmModal.addEventListener('click',e=>{ if(e.target===limitConfirmModal) hideLimitConfirm(); });
+        function handleMainToggle(idx,element){
+            const item=productItems[idx]; const isCurrentlyChecked=element.classList.contains('checked');
+            if(!isCurrentlyChecked && item.limit!=null && !item.noRemind){
+                const currentCount=countMainInRecords(item.name)+1;
+                if(currentCount>item.limit){
+                    showLimitConfirm(`「${item.name}」已达上限 (${item.limit})，是否继续添加？`,(confirmed,noRemind)=>{
+                        if(noRemind){ item.noRemind=true; saveToLocalStorage(); }
+                        if(confirmed){ element.classList.add('checked'); element.closest('.checklist-item')?.classList.add('checked'); }
+                    });
+                    return;
+                }
+            }
+            element.classList.toggle('checked'); element.closest('.checklist-item')?.classList.toggle('checked');
+        }
+        function handleSubToggle(pidx,sidx,element){
+            const item=productItems[pidx]; const subName=item.subOptions[sidx]; const isCurrentlyChecked=element.classList.contains('checked');
+            if(!isCurrentlyChecked && item.subOptionLimits[sidx]!=null && !(item.subNoRemind&&item.subNoRemind[subName])){
+                const currentCount=countSubInRecords(item.name,subName)+1;
+                if(currentCount>item.subOptionLimits[sidx]){
+                    showLimitConfirm(`「${item.name} - ${subName}」已达上限 (${item.subOptionLimits[sidx]})，是否继续添加？`,(confirmed,noRemind)=>{
+                        if(noRemind){ if(!item.subNoRemind) item.subNoRemind={}; item.subNoRemind[subName]=true; saveToLocalStorage(); }
+                        if(confirmed){ element.classList.add('checked'); }
+                    });
+                    return;
+                }
+            }
+            element.classList.toggle('checked');
+        }
+        function getCurrentCheckStates(){ const c={},r={},s={}; productItems.forEach((it,i)=>{ const cr=checklistContainer.querySelector(`.check-circle[data-product-index="${i}"]`); c[it.name]=cr?cr.classList.contains('checked'):false; if(it.needRemark){ const ri=checklistContainer.querySelector(`.remark-input[data-product-index="${i}"]`); r[it.name]=ri?ri.value.trim():''; } else r[it.name]=''; if(it.needSubOptions&&it.subOptions.length){ const so={}; it.subOptions.forEach((sn,si)=>{ const sc=checklistContainer.querySelector(`.sub-check-circle[data-product-index="${i}"][data-sub-index="${si}"]`); so[sn]=sc?sc.classList.contains('checked'):false; }); s[it.name]=so; } else s[it.name]={}; }); return {checks:c,remarks:r,subOptionChecks:s}; }
+        function clearPage2Form(){ inputId.value=''; inputGlobalRemark.value=''; checklistContainer.querySelectorAll('.checked').forEach(e=>e.classList.remove('checked')); checklistContainer.querySelectorAll('.remark-input').forEach(e=>e.value=''); inputId.focus(); }
+        function updateSavedSummary(){ if(savedRecords.length){ savedSummary.style.display='block'; savedCountEl.textContent=savedRecords.length; } else savedSummary.style.display='none'; }
+        function loadRecordToForm(idx){ 
+            if(idx<0||idx>=savedRecords.length) return; 
+            const rec=savedRecords[idx]; 
+            const dateStr=rec.date||''; 
+            const parts=dateStr.split('-'); 
+            let shift='早'; 
+            if(parts.length>3&&['早','午','晚'].includes(parts[parts.length-1])){ 
+                shift=parts.pop(); inputDate.value=parts.join('-'); 
+            } else inputDate.value=dateStr; 
+            setShiftButtons(shift); 
+            inputId.value=rec.id; 
+            inputGlobalRemark.value=rec.globalRemark||''; 
+            renderChecklist(); 
+            productItems.forEach((item,i)=>{ 
+                const mc=checklistContainer.querySelector(`.check-circle[data-product-index="${i}"]`); 
+                const li=mc?.closest('.checklist-item'); 
+                if(mc&&rec.checks[item.name]===true){ 
+                    mc.classList.add('checked'); if(li)li.classList.add('checked'); 
+                } 
+                if(item.needRemark){ 
+                    const ri=checklistContainer.querySelector(`.remark-input[data-product-index="${i}"]`); 
+                    if(ri)ri.value=rec.remarks[item.name]||''; 
+                } 
+                if(item.needSubOptions&&item.subOptions.length){ 
+                    const subChecks=rec.subOptionChecks[item.name]||{}; 
+                    item.subOptions.forEach((sub,si)=>{ 
+                        const sc=checklistContainer.querySelector(`.sub-check-circle[data-product-index="${i}"][data-sub-index="${si}"]`); 
+                        if(sc&&subChecks[sub]===true)sc.classList.add('checked'); 
+                    }); 
+                } 
+            }); 
+            editingRecordIndex=idx; 
+            showToast(`已加载记录`,'success'); 
+        }
+        btnQueryRecord.addEventListener('click',()=>{ queryInputId.value=''; queryResults.innerHTML='<p style="text-align:center;padding:15px;color:#a09990;">输入关键字搜索ID，支持模糊匹配</p>'; queryModal.style.display='flex'; });
+        btnCloseQuery.addEventListener('click',()=>queryModal.style.display='none');
+        queryModal.addEventListener('click',e=>{ if(e.target===queryModal) queryModal.style.display='none'; });
+        function performFuzzySearch(){ 
+            const keyword=queryInputId.value.trim().toLowerCase(); 
+            if(!keyword){ queryResults.innerHTML='<p>输入关键字搜索</p>'; return; } 
+            if(savedRecords.length===0){ queryResults.innerHTML='<p>暂无记录</p>'; return; } 
+            const matches=savedRecords.map((r,i)=>({idx:i,date:r.date,id:r.id})).filter(e=>e.id.toLowerCase().includes(keyword)); 
+            if(matches.length===0){ queryResults.innerHTML='<p>未找到</p>'; return; } 
+            let html=''; 
+            matches.forEach(e=>{ 
+                html+=`<div style="display:flex;justify-content:space-between;padding:8px;border:1px solid #eee;margin-bottom:4px;"><span style="cursor:pointer" data-record-index="${e.idx}">${escapeHtml(e.date)} ${escapeHtml(e.id)}</span><button class="btn-delete-record" data-record-index="${e.idx}">🗑</button></div>`; 
+            }); 
+            queryResults.innerHTML=html; 
+            queryResults.querySelectorAll('span[data-record-index]').forEach(s=>s.addEventListener('click',function(){ 
+                queryModal.style.display='none'; 
+                if (!page2.classList.contains('active') || page2.style.display === 'none') {
+                    page1.style.display = 'none';
+                    page2.style.display = '';
+                    page1.classList.remove('active');
+                    page2.classList.add('active');
+                }
+                loadRecordToForm(parseInt(this.dataset.recordIndex)); 
+            })); 
+            queryResults.querySelectorAll('.btn-delete-record').forEach(b=>b.addEventListener('click',function(e){ 
+                e.stopPropagation(); 
+                const idx=parseInt(this.dataset.recordIndex); 
+                if(confirm('确定删除？')){ savedRecords.splice(idx,1); saveToLocalStorage(); updateSavedSummary(); performFuzzySearch(); showToast('已删除','warning'); } 
+            })); 
+        }
+        queryInputId.addEventListener('input',performFuzzySearch); btnSearchId.addEventListener('click',performFuzzySearch);
+        btnSaveAndNext.addEventListener('click',()=>{ const dv=inputDate.value.trim(),iv=inputId.value.trim(); if(!dv||!iv){ showToast('请填写日期和ID','warning'); return; } const {checks,remarks,subOptionChecks}=getCurrentCheckStates(); const has=Object.values(checks).some(v=>v)||Object.values(subOptionChecks).some(o=>Object.values(o).some(v=>v)); if(!has){ showToast('请至少勾选一项','warning'); return; } const fullDate = dv+'-'+currentShift; const rec={date:fullDate, id:iv, checks:{...checks}, remarks:{...remarks}, subOptionChecks:JSON.parse(JSON.stringify(subOptionChecks)), globalRemark:inputGlobalRemark.value.trim()}; if(editingRecordIndex!==null){ savedRecords[editingRecordIndex]=rec; editingRecordIndex=null; }else{ savedRecords.push(rec); } saveToLocalStorage(); updateSavedSummary(); clearPage2Form(); setShiftButtons(currentShift); window.scrollTo({top:0,behavior:'smooth'}); });
+        btnExportDabiao.addEventListener('click',()=>{ if(savedRecords.length===0){ showToast('没有记录','warning'); return; } exportToExcel(); });
+        function exportToExcel() {
+            if (!savedRecords.length || !productItems.length) return;
+            const items = productItems.filter(it => it.name);
+            const wb = XLSX.utils.book_new();
+
+            // 构建主汇总sheet
+            const summaryHeaders = ['日期', 'ID'];
+            items.forEach(item => {
+                summaryHeaders.push(item.name);
+                if (item.needSubOptions && item.subOptions && item.subOptions.length) {
+                    summaryHeaders.push(item.name + '数量');
+                } else if (item.needRemark) {
+                    summaryHeaders.push(item.name + '备注');
+                }
+            });
+            summaryHeaders.push('整体备注');
+
+            const summaryRows = [summaryHeaders];
+            savedRecords.forEach(rec => {
+                const row = [rec.date, rec.id];
+                items.forEach(item => {
+                    if (item.needSubOptions && item.subOptions && item.subOptions.length) {
+                        const subChecks = rec.subOptionChecks && rec.subOptionChecks[item.name] || {};
+                        const selected = item.subOptions.filter(s => subChecks[s] === true);
+                        row.push(selected.join('/'));
+                        // 数量列：若有勾选则显示数量，否则为空
+                        row.push(selected.length > 0 ? selected.length : '');
+                    } else {
+                        const val = rec.checks && rec.checks[item.name] ? '1' : '';
+                        row.push(val);
+                        if (item.needRemark) {
+                            row.push(rec.remarks && rec.remarks[item.name] || '');
+                        }
+                    }
+                });
+                row.push(rec.globalRemark || '');
+                summaryRows.push(row);
+            });
+
+            // 合计行
+            const summaryTotalRow = ['合计', ''];
+            items.forEach(item => {
+                if (item.needSubOptions && item.subOptions && item.subOptions.length) {
+                    let totalCount = 0;
+                    savedRecords.forEach(rec => {
+                        const subChecks = rec.subOptionChecks && rec.subOptionChecks[item.name] || {};
+                        const selected = item.subOptions.filter(s => subChecks[s] === true);
+                        totalCount += selected.length;
+                    });
+                    summaryTotalRow.push('');
+                    summaryTotalRow.push(totalCount);
+                } else {
+                    const count = savedRecords.filter(rec => rec.checks && rec.checks[item.name]).length;
+                    summaryTotalRow.push(count);
+                    if (item.needRemark) summaryTotalRow.push('');
+                }
+            });
+            summaryTotalRow.push('');
+            summaryRows.push(summaryTotalRow);
+
+            const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+            XLSX.utils.book_append_sheet(wb, summarySheet, '汇总');
+
+            // 为每个有副选项的项生成独立sheet
+            items.forEach(item => {
+                if (!item.needSubOptions || !item.subOptions || item.subOptions.length === 0) return;
+
+                const subHeaders = ['日期', 'ID', ...item.subOptions];
+                if (item.needRemark) subHeaders.push('备注');
+                const subRows = [subHeaders];
+
+                savedRecords.forEach(rec => {
+                    const subChecks = rec.subOptionChecks && rec.subOptionChecks[item.name] || {};
+                    const row = [rec.date, rec.id];
+                    item.subOptions.forEach(sub => {
+                        row.push(subChecks[sub] === true ? '1' : '');
+                    });
+                    if (item.needRemark) {
+                        row.push(rec.remarks && rec.remarks[item.name] || '');
+                    }
+                    subRows.push(row);
+                });
+
+                // 合计行
+                const subTotalRow = ['合计', ''];
+                item.subOptions.forEach(sub => {
+                    const count = savedRecords.filter(rec => {
+                        const sc = rec.subOptionChecks && rec.subOptionChecks[item.name] || {};
+                        return sc[sub] === true;
+                    }).length;
+                    subTotalRow.push(count);
+                });
+                if (item.needRemark) subTotalRow.push('');
+                subRows.push(subTotalRow);
+
+                const safeName = item.name.replace(/[\\\/\?\*\[\] ]/g, '_').substring(0, 31);
+                const subSheet = XLSX.utils.aoa_to_sheet(subRows);
+                XLSX.utils.book_append_sheet(wb, subSheet, safeName || 'Sheet');
+            });
+
+            XLSX.writeFile(wb, '打表记录.xlsx');
+        }
+        function computeStats(){ const st={}; productItems.forEach(item=>{ st[item.name]={main:0,sub:{}}; if(item.needSubOptions&&item.subOptions.length) item.subOptions.forEach(s=>st[item.name].sub[s]=0); }); savedRecords.forEach(rec=>{ productItems.forEach(item=>{ if(item.needSubOptions&&item.subOptions.length){ const so=rec.subOptionChecks[item.name]||{}; item.subOptions.forEach(s=>{ if(so[s]){ st[item.name].main++; st[item.name].sub[s]=(st[item.name].sub[s]||0)+1; } }); } else { if(rec.checks[item.name]) st[item.name].main++; } }); }); return st; }
+        function showStatsModal(){ const st=computeStats(); let html='<table class="stats-table"><thead><tr><th>制品</th><th>总次数</th>'; const hasSub=productItems.some(it=>it.needSubOptions&&it.subOptions.length); if(hasSub) html+='<th>副选项次数</th>'; html+='</tr></thead><tbody>'; productItems.forEach(item=>{ const d=st[item.name]; const mainExceed=item.limit!=null&&d.main>item.limit; html+=`<tr><td>${escapeHtml(item.name)}</td><td style="${mainExceed?'color:var(--orange);font-weight:bold;':''}">${d.main}</td>`; if(hasSub){ let subHtml=''; if(item.needSubOptions&&item.subOptions.length){ item.subOptions.forEach((sb,i)=>{ const val=d.sub[sb]||0; const exceed=item.subOptionLimits[i]!=null&&val>item.subOptionLimits[i]; subHtml+=`${escapeHtml(sb)} : <span style="${exceed?'color:var(--orange);font-weight:bold;':''}">${val}</span><br>`; }); } else { subHtml='—'; } html+=`<td>${subHtml}</td>`; } html+='</tr>'; }); html+='</tbody></table>'; if(savedRecords.length===0) html='<p style="text-align:center;">暂无记录</p>'; statsTableContainer.innerHTML=html; statsModal.style.display='flex'; }
+        btnResetAll.addEventListener('click',()=>{ if(confirm('全部重置？')){ clearLocalStorage(); productItems=[]; savedRecords=[]; initPage1Dabiao(); showToast('已重置','warning'); } });
+        btnShowStats.addEventListener('click',showStatsModal); btnCloseStats.addEventListener('click',()=>statsModal.style.display='none'); statsModal.addEventListener('click',e=>{ if(e.target===statsModal) statsModal.style.display='none'; });
+        loadFromLocalStorage(); initPage1Dabiao(); if(window.syncDabiaoToQueryGlobal) window.syncDabiaoToQueryGlobal();
+    })();
+
+    (function(){
+        let tableData=[],headers=[],lastQueryId=null,statusMap={};
+        const fileInput=document.getElementById('fileInput'),uploadBtn=document.getElementById('uploadBtn'),syncBtn=document.getElementById('syncDabiaoBtn'),tableStatus=document.getElementById('tableStatus');
+        const idInput=document.getElementById('idInput'),searchBtn=document.getElementById('searchBtn'),resultBox=document.getElementById('resultBox');
+        const btnPacked=document.getElementById('btnPacked'),btnSwapped=document.getElementById('btnSwapped'),currentIdLabel=document.getElementById('currentIdLabel');
+        const exportBtn=document.getElementById('exportBtn'),listBox=document.getElementById('listResultBox');
+        let currentListType = null;
+        function saveAll(){ try{ localStorage.setItem('orderHeaders',JSON.stringify(headers)); localStorage.setItem('orderData',JSON.stringify(tableData)); localStorage.setItem('orderStatusMap',JSON.stringify(statusMap)); }catch(e){} }
+        function loadData(){
+            const sd=localStorage.getItem('orderData'),sh=localStorage.getItem('orderHeaders'),sm=localStorage.getItem('orderStatusMap');
+            if(sd&&sh){ try{ headers=JSON.parse(sh); tableData=JSON.parse(sd); statusMap=sm?JSON.parse(sm):{}; tableStatus.textContent=`✅ 已加载表格（${tableData.length} 条）`; }catch(e){ tableData=[]; headers=[]; } }
+            else { tableData=[]; headers=[]; tableStatus.textContent='⚠️ 暂无表格数据'; }
+        }
+        window.refreshQueryData = loadData;
+        function getStatusObj(id){ if(!statusMap[id]) statusMap[id]={packed:false,swapped:false}; return statusMap[id]; }
+        uploadBtn.addEventListener('click',()=>fileInput.click());
+        fileInput.addEventListener('change',e=>{
+            const file=e.target.files[0]; if(!file) return;
+            if(tableData.length>0 && !confirm('重新上传将清空当前数据，确定继续吗？')){ fileInput.value=''; return; }
+            const reader=new FileReader();
+            reader.onload=ev=>{
+                try{
+                    const data=new Uint8Array(ev.target.result); const wb=XLSX.read(data,{type:'array'});
+                    const ws=wb.Sheets[wb.SheetNames[0]]; const json=XLSX.utils.sheet_to_json(ws,{header:1});
+                    if(json.length<2){ alert('表格至少需要表头和一数据行！'); return; }
+                    headers=json[0].map(h=>String(h).trim()); const rows=[];
+                    for(let i=1;i<json.length;i++){ const row=json[i]; if(!row||row.every(c=>c===undefined||c===null||String(c).trim()==='')) continue; const obj={}; headers.forEach((h,idx)=>{ obj[h]=row[idx]!==undefined?row[idx]:''; }); rows.push(obj); }
+                    tableData=rows; statusMap={}; lastQueryId=null; localStorage.removeItem('orderDataFromSync');
+                    saveAll(); tableStatus.textContent=`✅ 表格加载成功！共 ${tableData.length} 条`; resultBox.innerHTML=''; idInput.value=''; updateButtonsFor(null);
+                }catch(ex){ alert('读取文件出错：'+ex.message); }
+            };
+            reader.readAsArrayBuffer(file); fileInput.value='';
+        });
+        syncBtn.addEventListener('click',()=>{ if(window.syncDabiaoToQueryGlobal){ window.syncDabiaoToQueryGlobal(); loadData(); resultBox.innerHTML='✅ 已同步打表数据'; } });
+        function updateButtonsFor(id){ if(!id){ btnPacked.classList.remove('green'); btnSwapped.classList.remove('green'); currentIdLabel.textContent=''; return; } const s=getStatusObj(id); btnPacked.classList.toggle('green',s.packed); btnSwapped.classList.toggle('green',s.swapped); currentIdLabel.textContent=`当前ID: ${id}`; }
+        function performSearch(){ if(tableData.length===0){ resultBox.innerHTML='<span style="color:#e74c3c;">⚠️ 请先上传表格或同步打表数据！</span>'; return; } const kw=idInput.value.trim(); if(!kw){ resultBox.innerHTML='<span style="color:#e74c3c;">⚠️ 请输入ID或关键字</span>'; return; } const idKey=headers[1]; const allIds=[...new Set(tableData.map(r=>String(r[idKey]||'').trim()).filter(Boolean))]; const matches=allIds.filter(id=>id.includes(kw)); if(matches.length===0){ resultBox.innerHTML=`<span style="color:#e74c3c;">❌ 未找到包含 "${kw}" 的ID</span>`; return; } if(matches.length===1) showDetailById(matches[0]); else{ let html='<strong>🔍 找到多个匹配ID：</strong><br>'; matches.forEach(id=>{ html+=`<div class="id-list-item" data-id="${id}">${id}</div>`; }); resultBox.innerHTML=html; resultBox.querySelectorAll('.id-list-item').forEach(el=>el.addEventListener('click',function(){ showDetailById(this.dataset.id); })); } }
+        function showDetailById(id){ 
+            const idKey=headers[1]; const rows=tableData.filter(r=>String(r[idKey]).trim()===id); 
+            lastQueryId=id; idInput.value=id; 
+            let html=''; 
+            rows.forEach((r,i)=>{ 
+                if(i>0) html+='<hr>'; 
+                const filtered = Object.entries(r).filter(([k,v])=> {
+                    return v !== '' && v !== null && v !== undefined;
+                }).map(([k,v])=>`${k}: ${v}`).join('<br>');
+                html += filtered || '<span style="color:#a09990;">（无数据）</span>';
+            }); 
+            resultBox.innerHTML=html; updateButtonsFor(id); saveAll(); 
+        }
+        searchBtn.addEventListener('click',performSearch); idInput.addEventListener('keypress',e=>{ if(e.key==='Enter') performSearch(); });
+        btnPacked.addEventListener('click',()=>{ if(!lastQueryId) return; const s=getStatusObj(lastQueryId); s.packed=!s.packed; btnPacked.classList.toggle('green',s.packed); saveAll(); });
+        btnSwapped.addEventListener('click',()=>{ if(!lastQueryId) return; const s=getStatusObj(lastQueryId); s.swapped=!s.swapped; btnSwapped.classList.toggle('green',s.swapped); saveAll(); });
+        exportBtn.addEventListener('click',()=>{ if(!tableData.length) return; const idKey=headers[1],dateKey=headers[0]||'日期'; const exportRows=tableData.map(row=>{ const id=String(row[idKey]||'').trim(); const s=statusMap[id]||{}; return {'ID':id,'日期':String(row[dateKey]||'').trim(),'已打包':s.packed?'1':'','已互换':s.swapped?'1':''}; }); const ws=XLSX.utils.json_to_sheet(exportRows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'状态'); XLSX.writeFile(wb,`状态_${new Date().toISOString().slice(0,10)}.xlsx`); });
+        function getUniqueDates(){ if(!headers.length||!tableData.length) return []; const dk=headers[0]; return [...new Set(tableData.map(r=>String(r[dk]||'').trim()).filter(Boolean))].sort(); }
+        function getIdsByDate(d){ const dk=headers[0],ik=headers[1]; return [...new Set(tableData.filter(r=>String(r[dk]||'').trim()===d).map(r=>String(r[ik]||'').trim()).filter(Boolean))]; }
+        function showDateSelection(type){
+            currentListType = type;
+            const dates=getUniqueDates(); if(!dates.length){ listBox.innerHTML='<span style="color:#e74c3c;">⚠️ 没有可用日期。</span>'; return; }
+            if(dates.length===1){ showFilteredList(type,dates[0]); return; }
+            let html='<div style="text-align:center;"><strong>📅 请选择日期：</strong></div><div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px;">';
+            dates.forEach(d=>html+=`<button class="btn-date-option" data-date="${d}">${escapeHtml(d)}</button>`);
+            html+='</div><div style="text-align:center;margin-top:10px;"><button class="btn-date-back" id="btnShowAll">📋 显示全部</button></div>';
+            listBox.innerHTML=html;
+        }
+        function showFilteredList(type,dateStr){
+            const ids=getIdsByDate(dateStr); const filtered=(type==='unpacked')?ids.filter(id=>!getStatusObj(id).packed):ids.filter(id=>!getStatusObj(id).swapped);
+            const label=type==='unpacked'?'未打包':'未互换';
+            let html=`<button class="btn-date-back" id="btnBack">&larr; 返回日期</button> 📅 ${escapeHtml(dateStr)}<br>`;
+            if(filtered.length) html+=`<strong>${label} ID：</strong><br>${filtered.map(escapeHtml).join('<br>')}`;
+            else html+=`🎉 所有ID均已${label}！`;
+            listBox.innerHTML=html;
+        }
+        function showFilteredListAll(type){
+            const ids=[...new Set(tableData.map(r=>String(r[headers[1]]||'').trim()).filter(Boolean))];
+            const filtered=(type==='unpacked')?ids.filter(id=>!getStatusObj(id).packed):ids.filter(id=>!getStatusObj(id).swapped);
+            const label=type==='unpacked'?'未打包':'未互换';
+            let html=`<button class="btn-date-back" id="btnBackAll">&larr; 返回日期</button> 📋 全部日期<br>`;
+            if(filtered.length) html+=`<strong>${label} ID：</strong><br>${filtered.map(escapeHtml).join('<br>')}`;
+            else html+=`🎉 所有ID均已${label}！`;
+            listBox.innerHTML=html;
+        }
+        listBox.addEventListener('click', function(e){
+            const t = e.target;
+            if(t.classList.contains('btn-date-option')){ showFilteredList(currentListType, t.dataset.date); }
+            else if(t.id === 'btnShowAll'){ showFilteredListAll(currentListType); }
+            else if(t.id === 'btnBack' || t.id === 'btnBackAll'){ showDateSelection(currentListType); }
+        });
+        btnUnpackedList.addEventListener('click',()=>{ 
+            if(!tableData.length || !headers.length){ listBox.innerHTML='<span style="color:#e74c3c;">⚠️ 请先上传表格或同步打表数据！</span>'; return; }
+            showDateSelection('unpacked'); 
+        });
+        btnUnswappedList.addEventListener('click',()=>{ 
+            if(!tableData.length || !headers.length){ listBox.innerHTML='<span style="color:#e74c3c;">⚠️ 请先上传表格或同步打表数据！</span>'; return; }
+            showDateSelection('unswapped'); 
+        });
+        loadData();
+    })();
+</script>
+</body>
+</html>
